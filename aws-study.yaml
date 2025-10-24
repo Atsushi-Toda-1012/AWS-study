@@ -12,6 +12,20 @@ Parameters:
     NoEcho: true
     Description: "RDS Master Password"
 
+  EC2ImageId:
+    Type: AWS::EC2::Image::Id
+    Description: "AMI ID for EC2"
+
+  EC2KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: "KeyPair name for EC2"
+
+  RDSInstanceId:
+    Type: String
+    Default: aws-study-rds
+    Description: "RDS Instance Identifier"
+
+
 Resources:
   # --------------------------
   # VPC
@@ -196,8 +210,8 @@ Resources:
     Type: AWS::EC2::Instance
     Properties:
       InstanceType: t3.micro
-      KeyName: atsushi1012
-      ImageId: ami-070e0d4707168fc07
+      KeyName: !Ref EC2KeyName
+      ImageId: !Ref EC2ImageId
       SubnetId: !Ref AWSSTUDYPublicSubnet1a
       SecurityGroupIds:
         - !Ref AWSSTUDYEC2SecurityGroup
@@ -323,3 +337,7 @@ Outputs:
   EC2PublicIP:
     Description: "Public IP of EC2"
     Value: !GetAtt AWSSTUDYEC2Instance.PublicIp
+
+  ALBDNSName:
+    Description: "DNS name of the Application Load Balancer"
+    Value: !GetAtt AWSSTUDYALB.DNSName
