@@ -1,0 +1,343 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: aws-study
+
+Parameters:
+  DBUsername:
+    Type: String
+    Default: admin
+    Description: "RDS Master Username"
+
+  DBPassword:
+    Type: String
+    NoEcho: true
+    Description: "RDS Master Password"
+
+  EC2ImageId:
+    Type: AWS::EC2::Image::Id
+    Description: "AMI ID for EC2"
+
+  EC2KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: "KeyPair name for EC2"
+
+  RDSInstanceId:
+    Type: String
+    Default: aws-study-rds
+    Description: "RDS Instance Identifier"
+
+
+Resources:
+  # --------------------------
+  # VPC
+  AWSSTUDYVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: aws-study-vpc
+
+  # ----------------------------
+  # Public Subnets
+  AWSSTUDYPublicSubnet1a:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref AWSSTUDYVPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: ap-northeast-1a
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: aws-study-public-1a
+
+  AWSSTUDYPublicSubnet1c:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref AWSSTUDYVPC
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: ap-northeast-1c
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: aws-study-public-1c
+
+
+  # --------------------------
+  # Internet Gateway
+  AWSSTUDYInternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: aws-study-igw
+
+  AWSSTUDYAttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref AWSSTUDYVPC
+      InternetGatewayId: !Ref AWSSTUDYInternetGateway
+
+
+  # -----------------------------
+  # Public Route Table
+  AWSSTUDYPublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref AWSSTUDYVPC
+      Tags:
+        - Key: Name
+          Value: aws-study-public-rt
+
+  AWSSTUDYPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AWSSTUDYAttachGateway
+    Properties:
+      RouteTableId: !Ref AWSSTUDYPublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref AWSSTUDYInternetGateway
+
+  AWSSTUDYPublicSubnet1aRouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref AWSSTUDYPublicSubnet1a
+      RouteTableId: !Ref AWSSTUDYPublicRouteTable
+
+  AWSSTUDYPublicSubnet1cRouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref AWSSTUDYPublicSubnet1c
+      RouteTableId: !Ref AWSSTUDYPublicRouteTable
+
+  # -----------------------------
+  # Private Subnets
+  AWSSTUDYPrivateSubnet1a:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref AWSSTUDYVPC
+      CidrBlock: 10.0.3.0/24
+      AvailabilityZone: ap-northeast-1a
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: aws-study-private-1a
+
+  AWSSTUDYPrivateSubnet1c:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref AWSSTUDYVPC
+      CidrBlock: 10.0.4.0/24
+      AvailabilityZone: ap-northeast-1c
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: aws-study-private-1c
+
+  # --------------------------
+  # Private Route Table
+  AWSSTUDYPrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref AWSSTUDYVPC
+      Tags:
+        - Key: Name
+          Value: aws-study-private-rt
+
+  AWSSTUDYPrivateSubnet1aRouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref AWSSTUDYPrivateSubnet1a
+      RouteTableId: !Ref AWSSTUDYPrivateRouteTable
+
+  AWSSTUDYPrivateSubnet1cRouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref AWSSTUDYPrivateSubnet1c
+      RouteTableId: !Ref AWSSTUDYPrivateRouteTable
+
+
+  # --------------------------
+  # EC2 Security Group
+  AWSSTUDYEC2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Allow SSH, HTTP, HTTPS"
+      VpcId: !Ref AWSSTUDYVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 219.118.152.220/32
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: aws-study-ec2-sg
+
+  # --------------------------
+  # RDS Security Group
+  AWSSTUDYRdsSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Allow MySQL from EC2"
+      VpcId: !Ref AWSSTUDYVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          SourceSecurityGroupId: !Ref AWSSTUDYEC2SecurityGroup
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: aws-study-rds-sg
+
+
+  # --------------------------
+  # EC2 Instance
+  AWSSTUDYEC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.micro
+      KeyName: !Ref EC2KeyName
+      ImageId: !Ref EC2ImageId
+      SubnetId: !Ref AWSSTUDYPublicSubnet1a
+      SecurityGroupIds:
+        - !Ref AWSSTUDYEC2SecurityGroup
+      Tags:
+        - Key: Name
+          Value: aws-study-ec2
+
+  # --------------------------
+  # RDS Instance
+  AWSSTUDYRdsInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceIdentifier: aws-study-rds
+      DBName: awsstudydb
+      AllocatedStorage: 20
+      AllowMajorVersionUpgrade: false
+      AutoMinorVersionUpgrade: true
+      DBInstanceClass: db.t3.micro
+      Engine: MySQL
+      EngineVersion: 8.0
+      MasterUsername: !Ref DBUsername
+      MasterUserPassword: !Ref DBPassword
+      VPCSecurityGroups:
+        - !Ref AWSSTUDYRdsSecurityGroup
+      DBSubnetGroupName: !Ref AWSSTUDYRdsSubnetGroup
+      MultiAZ: false
+      PubliclyAccessible: false
+      StorageType: gp2
+      BackupRetentionPeriod: 1
+      EnableCloudwatchLogsExports:
+        - error
+        - slowquery
+      Tags:
+        - Key: Name
+          Value: aws-study-rds
+
+
+  # --------------------------
+  # RDS Subnet Group
+  AWSSTUDYRdsSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: "Private Subnets for RDS"
+      SubnetIds:
+        - !Ref AWSSTUDYPrivateSubnet1a
+        - !Ref AWSSTUDYPrivateSubnet1c
+      Tags:
+        - Key: Name
+          Value: aws-study-rds-subnet-group
+
+
+  # --------------------------
+  # ALB Security Group
+  AWSSTUDYALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Allow HTTP/HTTPS to ALB"
+      VpcId: !Ref AWSSTUDYVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: aws-study-alb-sg
+
+  # --------------------------
+  # ALB
+  AWSSTUDYALB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: aws-study-alb
+      Subnets:
+        - !Ref AWSSTUDYPublicSubnet1a
+        - !Ref AWSSTUDYPublicSubnet1c
+      SecurityGroups:
+        - !Ref AWSSTUDYALBSecurityGroup
+      Tags:
+        - Key: Name
+          Value: AWSSTUDYALB
+
+  # --------------------------
+  # Target Group
+  AWSSTUDYTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: aws-study-target
+      Port: 8080
+      Protocol: HTTP
+      VpcId: !Ref AWSSTUDYVPC
+      TargetType: instance
+      HealthCheckPath: /
+      Matcher:
+        HttpCode: 200
+      Tags:
+        - Key: Name
+          Value: aws-study-target
+      Targets:
+        - Id: !Ref AWSSTUDYEC2Instance
+          Port: 8080
+
+  # --------------------------
+  # Listener (HTTP)
+  AWSSTUDYALBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref AWSSTUDYALB
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref AWSSTUDYTargetGroup
+
+
+# --------------------------
+# Outputs
+Outputs:
+  EC2PublicIP:
+    Description: "Public IP of EC2"
+    Value: !GetAtt AWSSTUDYEC2Instance.PublicIp
+
+  ALBDNSName:
+    Description: "DNS name of the Application Load Balancer"
+    Value: !GetAtt AWSSTUDYALB.DNSName
